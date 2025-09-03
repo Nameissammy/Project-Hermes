@@ -131,7 +131,7 @@ Those were temporary workarounds because Python couldn't find `backend/src` on `
 ## 11. Quick Start (Copy/Paste)
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Nameissammy/Project-Hermes.git
 cd Project-Hermes/backend
 cp .env.example .env   # then edit key
 uv sync
