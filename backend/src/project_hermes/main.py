@@ -24,7 +24,6 @@ class PoemState(BaseModel):
 
 
 class PoemFlow(Flow[PoemState]):
-
     @start()
     def generate_sentence_count(self) -> None:
         print("Generating sentence count")

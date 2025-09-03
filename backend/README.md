@@ -1,23 +1,157 @@
-# {{crew_name}} Crew
+# Project Hermes Backend (API Server)
 
-Welcome to the {{crew_name}} Crew project, powered by [crewAI](https://crewai.com). This template is designed to help you set up a multi-agent AI system with ease, leveraging the powerful and flexible framework provided by crewAI. Our goal is to enable your agents to collaborate effectively on complex tasks, maximizing their collective intelligence and capabilities.
+FastAPI + crewAI flow exposing a poem generation endpoint using a Gemini model (via crewAI's LLM layer). This guide makes the project reproducible on any machine without manual `sys.path` hacks.
 
-## Installation
+## 1. Prerequisites
 
-Ensure you have Python >=3.10 <3.14 installed on your system. This project uses [UV](https://docs.astral.sh/uv/) for dependency management and package handling, offering a seamless setup and execution experience.
+- Python >= 3.10 < 3.14
+- [uv](https://docs.astral.sh/uv/) installed (fast dependency manager):
+  ```bash
+  pip install uv
+  ```
+- A valid Gemini (Google Generative Language) API key in `.env`.
 
-First, if you haven't already, install uv:
+## 2. Clone & Install
+
+From repo root:
 
 ```bash
-pip install uv
+cd backend
+uv sync  # install dependencies from pyproject + uv.lock if present
+uv pip install -e .  # install package in editable mode so 'project_hermes' is importable
 ```
 
-Next, navigate to your project directory and install the dependencies:
+This avoids needing `sys.path.insert` everywhere.
 
-(Optional) Lock the dependencies and install them by using the CLI command:
+## 3. Environment Variables
+
+Create `backend/.env` (never commit secrets):
+
+```env
+GEMINI_API_KEY=your_key_here
+# Or fallback name used elsewhere:
+GOOGLE_API_KEY=your_key_here
+```
+
+CrewAI/LLM layer will pick up either.
+
+Optional for deterministic tests:
+
+```env
+POEM_SENTENCE_COUNT=3
+POEM_TOPIC=ai testing
+```
+
+## 4. Run the Flow Manually
+
+Because the package is installed editable, you can now run:
+
 ```bash
-crewai install
+uv run -m project_hermes.main "quantum security"
 ```
+
+This generates a poem and writes `poem.txt`.
+
+## 5. Run the API Server
+
+Two supported methods:
+
+Method A (direct):
+
+```bash
+uv run uvicorn project_hermes.api:app --reload --port 8001
+```
+
+Method B (helper script):
+
+```bash
+uv run python run_server.py
+```
+
+Test endpoint:
+
+```bash
+curl http://127.0.0.1:8001/poem/ai
+```
+
+Swagger docs available at: http://127.0.0.1:8001/docs
+ReDoc at: http://127.0.0.1:8001/redoc
+
+## 6. What the Endpoint Does
+
+`GET /poem/{prompt}` triggers the crewAI flow with `{prompt}` as the topic plus a random (or overridden) sentence count, returning JSON:
+
+```json
+{ "poem": "...", "topic": "ai" }
+```
+
+## 7. Project Structure (Backend)
+
+```
+backend/
+	pyproject.toml          # package + dependencies
+	run_server.py           # dev helper (adds src to path then launches uvicorn)
+	src/project_hermes/
+		__init__.py
+		main.py               # flow + kickoff function
+		api.py                # FastAPI app
+		crews/poem_crew/
+			poem_crew.py        # Crew & agents
+			config/
+				agents.yaml
+				tasks.yaml
+```
+
+## 8. Removing sys.path Hacks
+
+Earlier you ran commands like:
+
+```
+uv run python -c "import sys, os; sys.path.insert(0, 'backend/src'); import project_hermes; print('import ok')"
+```
+
+Those were temporary workarounds because Python couldn't find `backend/src` on `sys.path`. After installing editable (`uv pip install -e .` inside `backend`), you no longer need these. The package `project_hermes` is now resolvable from any working directory in the repo.
+
+## 9. Common Issues
+
+| Symptom                               | Cause                              | Fix                                             |
+| ------------------------------------- | ---------------------------------- | ----------------------------------------------- |
+| `ModuleNotFoundError: project_hermes` | Not installed editable / wrong CWD | Run install step or `cd backend` before running |
+| 400 Gemini auth error                 | Missing / invalid API key          | Set valid `GEMINI_API_KEY` or `GOOGLE_API_KEY`  |
+| Empty or partial poem                 | Model timeout/low tokens           | Adjust model config in crew YAML or flow        |
+| Overwritten poem file                 | Same filename                      | Add timestamp logic if persistence matters      |
+
+## 10. Suggested Improvements
+
+- Add tests (pytest) for flow determinism with `POEM_SENTENCE_COUNT`.
+- Add health endpoint (`/healthz`).
+- Add structured logging (e.g. `structlog`).
+- Parameterize model + temperature in env or YAML.
+
+## 11. Quick Start (Copy/Paste)
+
+```bash
+git clone <repo-url>
+cd Project-Hermes/backend
+cp .env.example .env   # then edit key
+uv sync
+uv pip install -e .
+uv run uvicorn project_hermes.api:app --reload --port 8001
+curl http://127.0.0.1:8001/poem/ai
+```
+
+## 12. Example Response
+
+```json
+{
+  "poem": "The AI ... (lines)",
+  "topic": "ai"
+}
+```
+
+---
+
+Everything above ensures others can reproduce the API server behavior without manual path tweaking.
 
 ### Customizing
 
@@ -28,32 +162,8 @@ crewai install
 - Modify `src/project_hermes/crew.py` to add your own logic, tools and specific args
 - Modify `src/project_hermes/main.py` to add custom inputs for your agents and tasks
 
-## Running the Project
-
-To kickstart your flow and begin execution, run this from the root folder of your project:
-
-```bash
-crewai run
-```
-
-This command initializes the project-hermes Flow as defined in your configuration.
-
-This example, unmodified, will run the create a `report.md` file with the output of a research on LLMs in the root folder.
-
-## Understanding Your Crew
-
-The project-hermes Crew is composed of multiple AI agents, each with unique roles, goals, and tools. These agents collaborate on a series of tasks, defined in `config/tasks.yaml`, leveraging their collective skills to achieve complex objectives. The `config/agents.yaml` file outlines the capabilities and configurations of each agent in your crew.
-
 ## Support
 
-For support, questions, or feedback regarding the {{crew_name}} Crew or crewAI.
-
-- Visit our [documentation](https://docs.crewai.com)
-- Reach out to us through our [GitHub repository](https://github.com/joaomdmoura/crewai)
-- [Join our Discord](https://discord.com/invite/X4JWnZnxPb)
-- [Chat with our docs](https://chatg.pt/DWjSBZn)
-
-Let's create wonders together with the power and simplicity of crewAI.
-
-------------------------------------
-to run server: uv run python backend/run_server.py
+- crewAI docs: https://docs.crewai.com
+- FastAPI docs: https://fastapi.tiangolo.com
+- uv docs: https://docs.astral.sh/uv/
