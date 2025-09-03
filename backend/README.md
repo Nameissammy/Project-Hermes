@@ -54,3 +54,6 @@ For support, questions, or feedback regarding the {{crew_name}} Crew or crewAI.
 - [Chat with our docs](https://chatg.pt/DWjSBZn)
 
 Let's create wonders together with the power and simplicity of crewAI.
+
+------------------------------------
+to run server: uv run python backend/run_server.py
