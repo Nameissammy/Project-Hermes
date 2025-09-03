@@ -79,10 +79,17 @@ ReDoc at: http://127.0.0.1:8001/redoc
 
 ## 6. What the Endpoint Does
 
-`GET /poem/{prompt}` triggers the crewAI flow with `{prompt}` as the topic plus a random (or overridden) sentence count, returning JSON:
+`GET /poem/{prompt}` triggers the crewAI flow with `{prompt}` as the topic plus a random (or overridden) sentence count, returning structured JSON:
 
 ```json
-{ "poem": "...", "topic": "ai" }
+{
+	"poem": "...",
+	"topic": "ai",
+	"model": "gemini/gemini-2.0-flash",
+	"attempts": 1,
+	"success": true,
+	"error": null
+}
 ```
 
 ## 7. Project Structure (Backend)
@@ -118,15 +125,26 @@ Those were temporary workarounds because Python couldn't find `backend/src` on `
 | ------------------------------------- | ---------------------------------- | ----------------------------------------------- |
 | `ModuleNotFoundError: project_hermes` | Not installed editable / wrong CWD | Run install step or `cd backend` before running |
 | 400 Gemini auth error                 | Missing / invalid API key          | Set valid `GEMINI_API_KEY` or `GOOGLE_API_KEY`  |
-| Empty or partial poem                 | Model timeout/low tokens           | Adjust model config in crew YAML or flow        |
-| Overwritten poem file                 | Same filename                      | Add timestamp logic if persistence matters      |
+| Empty or partial poem                 | Model timeout/low tokens           | Adjust model config / increase retries          |
+| Overwritten poem file                 | Same filename                      | Enable timestamp saving (`POEM_SAVE_TIMESTAMPED`)|
+| Placeholder `<error generating poem>` | All retries failed (non-strict)     | Inspect `error` field, raise with `POEM_STRICT=1`|
+| Slow response                         | Multiple retries/backoff           | Tweak `POEM_RETRY_ATTEMPTS` / `BASE_DELAY`       |
 
-## 10. Suggested Improvements
+## 10. Implemented Resilience & Features
 
-- Add tests (pytest) for flow determinism with `POEM_SENTENCE_COUNT`.
-- Add health endpoint (`/healthz`).
-- Add structured logging (e.g. `structlog`).
-- Parameterize model + temperature in env or YAML.
+Already implemented:
+- Retry with exponential backoff for transient (503 / overloaded / timeout) errors.
+- Multi-model fallback chain (`POEM_PRIMARY_MODEL`, `POEM_FALLBACK_MODELS`).
+- Structured flow state surfaced via API (`model`, `attempts`, `success`, `error`).
+- Strict failure mode (`POEM_STRICT=1`) to raise instead of returning placeholder text.
+- Optional fake output & forced error for deterministic testing (`POEM_FAKE_OUTPUT`, `POEM_FORCE_ERROR`).
+- Optional saving of poems to disk (`POEM_SAVE=1`, `POEM_OUTPUT_DIR`, timestamp toggle).
+
+Future ideas:
+- Structured JSON logging integration (basic formatter exists in `logging.py`).
+- Metrics / tracing (OpenTelemetry) export.
+- CI workflow (pytest + lint + type) via GitHub Actions.
+- Rate limiting / caching layer (Redis) for popular topics.
 
 ## 11. Quick Start (Copy/Paste)
 
@@ -144,8 +162,12 @@ curl http://127.0.0.1:8001/poem/ai
 
 ```json
 {
-  "poem": "The AI ... (lines)",
-  "topic": "ai"
+	"poem": "The AI ... (lines)",
+	"topic": "ai",
+	"model": "gemini/gemini-2.0-flash",
+	"attempts": 1,
+	"success": true,
+	"error": null
 }
 ```
 
@@ -155,12 +177,24 @@ Everything above ensures others can reproduce the API server behavior without ma
 
 ### Customizing
 
-**Add your `OPENAI_API_KEY` into the `.env` file**
+### Key Environment Variables (Quick Reference)
 
-- Modify `src/project_hermes/config/agents.yaml` to define your agents
-- Modify `src/project_hermes/config/tasks.yaml` to define your tasks
-- Modify `src/project_hermes/crew.py` to add your own logic, tools and specific args
-- Modify `src/project_hermes/main.py` to add custom inputs for your agents and tasks
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| GEMINI_API_KEY / GOOGLE_API_KEY | Auth for Gemini | (required) |
+| POEM_SENTENCE_COUNT | Deterministic sentence count | random 1-5 |
+| POEM_FAKE_OUTPUT | Bypass LLM for tests | (off) |
+| POEM_FORCE_ERROR | Simulate failure path | (off) |
+| POEM_PRIMARY_MODEL | First model to try | (YAML) |
+| POEM_FALLBACK_MODELS | Comma list of backups | (none) |
+| POEM_RETRY_ATTEMPTS | Attempts per model | 3 |
+| POEM_RETRY_BASE_DELAY | Initial backoff seconds | 0.6 |
+| POEM_STRICT | Raise on failure if 1 | 0 |
+| POEM_SAVE | Persist poems to files | 0 |
+| POEM_OUTPUT_DIR | Directory for saves | poems |
+| POEM_SAVE_TIMESTAMPED | Append timestamp if 1 | 1 |
+
+YAML model still acts as default if no runtime override is provided.
 
 ## Support
 
