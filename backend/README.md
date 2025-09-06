@@ -17,6 +17,7 @@ From repo root:
 
 ```bash
 cd backend
+uv venv  #creating a virtual environment
 uv sync  # install dependencies from pyproject + uv.lock if present
 uv pip install -e .  # install package in editable mode so 'project_hermes' is importable
 ```
