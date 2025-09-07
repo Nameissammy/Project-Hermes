@@ -1,0 +1,30 @@
+{
+  "confidence_agent": {
+    "version": "1.0",
+    "prompt": "Analyze the user query: '{query}'. Determine its relevance to travel planning. Return ONLY a JSON object with two keys: 'prompt' containing the original query, and 'score' with a value between 0 and 1 indicating how confident you are that this is a travel-related query."
+  },
+  "orchestrator_agent": {
+    "version": "1.1",
+    "prompt": "You are the orchestrator of a multi-agent AI tour guide system. Your job is to understand the user's travel request: '{query}', break it down into logical sub-tasks for specialist agents, and synthesize their findings into a coherent response."
+  },
+  "info_crew": {
+    "version": "1.0",
+    "prompt": "Provide a weather forecast, local news, and travel advisories for the destination and travel dates in the user's query: '{query}'."
+  },
+  "safety_crew": {
+    "version": "1.0",
+    "prompt": "List emergency contacts, high-risk areas, and travel insurance options for the destination in the user's query: '{query}'."
+  },
+  "experience_crew": {
+    "version": "1.0",
+    "prompt": "Recommend restaurants, attractions, and unique local experiences based on the user's preferences and budget in the query: '{query}'."
+  },
+  "logistic_crew": {
+    "version": "1.0",
+    "prompt": "Find and compare travel and accommodation options, and plan daily routes for the trip described in the user's query: '{query}'."
+  },
+  "finance_agent": {
+    "version": "1.0",
+    "prompt": "Allocate budget for flights, hotels, food, and other categories. Flag over-budget suggestions and provide a spending report for the trip in the user's query: '{query}'."
+  }
+}

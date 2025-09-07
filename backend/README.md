@@ -1,204 +1,242 @@
-# Project Hermes Backend (API Server)
+# Project Hermes: Multi-Agent AI Tour Guide Backend
 
-FastAPI + crewAI flow exposing a poem generation endpoint using a Gemini model (via crewAI's LLM layer). This guide makes the project reproducible on any machine without manual `sys.path` hacks.
+This backend is a FastAPI server powered by CrewAI, orchestrating a multi-agent system to generate comprehensive travel plans from user prompts. The architecture uses a centralized, versioned prompt library and Crew Flow for robust orchestration.
 
 ## 1. Prerequisites
 
 - Python >= 3.10 < 3.14
-- [uv](https://docs.astral.sh/uv/) installed (fast dependency manager):
-  ```bash
-  pip install uv
-  ```
-- A valid Gemini (Google Generative Language) API key in `.env`.
+- [uv](https://docs.astral.sh/uv/) for dependency management
+- At least one of the following API keys in `.env`:
+  - OpenAI API key (primary)
+  - Google Gemini API key (alternative)
+  - Anthropic Claude API key (alternative)
 
-## 2. Clone & Install
-
-From repo root:
+## 2. Installation
 
 ```bash
 cd backend
 uv venv  # creating a virtual environment
-uv sync  # install dependencies from pyproject + uv.lock if present
-uv pip install -e .  # install package in editable mode so 'project_hermes' is importable
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -e .  # install package in editable mode
 ```
-
-This avoids needing `sys.path.insert` everywhere.
 
 ## 3. Environment Variables
 
-Create `backend/.env` (never commit secrets):
-
-```env
-GEMINI_API_KEY=your_key_here
-# Or fallback name used elsewhere:
-GOOGLE_API_KEY=your_key_here
-```
-
-CrewAI/LLM layer will pick up either.
-
-Optional for deterministic tests:
-
-```env
-POEM_SENTENCE_COUNT=3
-POEM_TOPIC=ai testing
-```
-
-## 4. Run the Flow Manually
-
-Because the package is installed editable, you can now run:
+Create `backend/.env` and set at least one of these API keys (see `.env.example`):
 
 ```bash
-uv run -m project_hermes.main "quantum security"
+# Google Gemini API Key (primary)
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Anthropic Claude API Key (secondary)
+CLAUDE_API_KEY=your_claude_api_key_here
+
+# OpenAI API Key (tertiary)
+OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-This generates a poem and writes `poem.txt`.
+## 4. Multi-Provider Support
 
-## 5. Run the API Server
+Project Hermes supports multiple LLM providers:
 
-Two supported methods:
+1. **Provider Auto-Detection**: The system will automatically use the first available API key in this order:
 
-Method A (direct):
+   - Gemini (if `GEMINI_API_KEY` is set)
+   - Claude (if `CLAUDE_API_KEY` is set)
+   - OpenAI (if `OPENAI_API_KEY` is set)
+
+2. **Explicit Provider Selection**: You can specify which provider to use:
+
+   ```python
+   # In Python code
+   travel_crew = TravelCrew(llm_provider="gemini")
+   ```
+
+   ```json
+   // In API requests
+   {
+     "query": "Plan a weekend trip to Paris",
+     "llm_provider": "claude"
+   }
+   ```
+
+3. **Provider Options**:
+   - `"openai"`: Uses OpenAI's GPT-4 (default)
+   - `"gemini"`: Uses Google's Gemini model
+   - `"claude"`: Uses Anthropic's Claude model
+   - `None`: Auto-detects based on available API keys
+
+## 5. Running the Demo
+
+The project includes an interactive demo script that lets you explore different features:
 
 ```bash
-uv run uvicorn project_hermes.api:app --reload --port 8001
+python demo.py
 ```
 
-Method B (helper script):
+This will present you with three demo options:
 
-```bash
-uv run python run_server.py
-```
+1. Mocked Travel Crew (no API key needed) - Works without real API keys
+2. Simple Crew Test (requires API key) - Requires OpenAI API key
+3. Direct Travel Crew Test (requires API key) - Requires OpenAI API key
 
-Test endpoint:
+**Note:** Options 2 and 3 require a valid OpenAI API key in your `.env` file. If you don't have an API key, use option 1 for a mocked demonstration.
 
-```bash
-curl http://127.0.0.1:8001/poem/ai
-```
+## 6. API Endpoints
 
-Swagger docs available at: http://127.0.0.1:8001/docs
-ReDoc at: http://127.0.0.1:8001/redoc
+### `/travel/plan` (POST)
 
-## 6. What the Endpoint Does
+Generate a comprehensive travel plan from a natural language query.
 
-`GET /poem/{prompt}` triggers the crewAI flow with `{prompt}` as the topic plus a random (or overridden) sentence count, returning structured JSON:
+**Request Body:**
 
 ```json
 {
-	"poem": "...",
-	"topic": "ai",
-	"model": "gemini/gemini-2.0-flash",
-	"attempts": 1,
-	"success": true,
-	"error": null
+  "query": "Plan a weekend trip to Paris for a couple with a budget of $2000",
+  "llm_provider": "gemini" // Optional: "openai", "gemini", "claude", or null for auto-detect
 }
 ```
 
-## 7. Project Structure (Backend)
+**Response:**
+
+```json
+{
+  "success": true,
+  "confidence_score": 0.95,
+  "llm_provider": "ChatGoogleGenerativeAI",
+  "travel_plan": {
+    "overview": "Paris, the City of Light, offers a perfect romantic weekend...",
+    "itinerary": "Day 1: Arrive at Charles de Gaulle Airport...",
+    "safety": "Paris is generally safe for tourists, but be aware of pickpockets...",
+    "finance": "Estimated Budget Breakdown: Flights: $800, Accommodation: $400..."
+  }
+}
+```
+
+### Centralized Prompt Library
+
+- Prompts for all agents/tasks are versioned and loaded from `prompt_library.json` at runtime.
+
+### Crew Flow Orchestration
+
+- Flow starts with ConfidenceAgent
+- If confidence >= 0.6, OrchestratorAgent triggers parallel specialist agents
+- OrchestratorAgent synthesizes all outputs into a final travel plan
+- If confidence < 0.6, flow terminates and error is returned
+
+## 7. API Usage
+
+### Run the Server
+
+```bash
+uvicorn project_hermes.api:app --host 0.0.0.0 --port 8001 --reload
+```
+
+### Plan a Trip
+
+```bash
+# Basic query
+curl -X POST "http://127.0.0.1:8001/travel/plan" \
+	-H "Content-Type: application/json" \
+	-d '{"query":"Plan a weekend trip to Paris"}'
+
+# With specific provider
+curl -X POST "http://127.0.0.1:8001/travel/plan" \
+	-H "Content-Type: application/json" \
+	-d '{"query":"Plan a weekend trip to Paris", "llm_provider":"gemini"}'
+```
+
+### Response Structure
+
+```json
+{
+	"success": true,
+	"query": "Plan a weekend trip to Paris",
+	"travel_plan": { ... },
+	"confidence_score": 0.92,
+	"llm_provider": "ChatOpenAI"
+}
+```
+
+If the prompt is not travel-related:
+
+```json
+{
+  "success": false,
+  "error": "The query does not appear to be travel-related.",
+  "confidence_score": 0.2,
+  "query": "What is the capital of France?"
+}
+```
+
+## 8. Project Structure
 
 ```
 backend/
-	pyproject.toml          # package + dependencies
-	run_server.py           # dev helper (adds src to path then launches uvicorn)
 	src/project_hermes/
-		__init__.py
-		main.py               # flow + kickoff function
-		api.py                # FastAPI app
-		crews/poem_crew/
-			poem_crew.py        # Crew & agents
-			config/
-				agents.yaml
-				tasks.yaml
+		api.py                # FastAPI endpoints
+		main.py               # Entry points
+		settings.py           # App settings
+		logging.py            # Logging config
+		crews/travel_crew/
+			prompt_library.json # Centralized prompts
+			agents.py           # Agent classes
+			tasks.py            # Task classes
+			flow.py             # Crew Flow definition
+			travel_crew.py      # Crew wrapper
+			utils.py            # Prompt loader
 ```
 
-## 8. Removing sys.path Hacks
+## 9. Testing
 
-Earlier you ran commands like:
+- Tests cover prompt library loading, conditional flow, and full response structure.
+- Example: test irrelevant prompt returns error, valid prompt returns travel plan.
 
-```
-uv run python -c "import sys, os; sys.path.insert(0, 'backend/src'); import project_hermes; print('import ok')"
-```
+## 10. Extending
 
-Those were temporary workarounds because Python couldn't find `backend/src` on `sys.path`. After installing editable (`uv pip install -e .` inside `backend`), you no longer need these. The package `project_hermes` is now resolvable from any working directory in the repo.
+- Add new agents/tasks by updating `prompt_library.json` and agent/task classes.
+- Prompts are versioned for easy updates and rollback.
 
-## 9. Common Issues
+## 11. Backward Compatibility
 
-| Symptom                               | Cause                              | Fix                                             |
-| ------------------------------------- | ---------------------------------- | ----------------------------------------------- |
-| `ModuleNotFoundError: project_hermes` | Not installed editable / wrong CWD | Run install step or `cd backend` before running |
-| 400 Gemini auth error                 | Missing / invalid API key          | Set valid `GEMINI_API_KEY` or `GOOGLE_API_KEY`  |
-| Empty or partial poem                 | Model timeout/low tokens           | Adjust model config / increase retries          |
-| Overwritten poem file                 | Same filename                      | Enable timestamp saving (`POEM_SAVE_TIMESTAMPED`)|
-| Placeholder `<error generating poem>` | All retries failed (non-strict)     | Inspect `error` field, raise with `POEM_STRICT=1`|
-| Slow response                         | Multiple retries/backoff           | Tweak `POEM_RETRY_ATTEMPTS` / `BASE_DELAY`       |
+- The `/poem/{prompt}` endpoint remains for legacy use.
 
-## 10. Implemented Resilience & Features
+## 12. Dependency Management
 
-Already implemented:
-- Retry with exponential backoff for transient (503 / overloaded / timeout) errors.
-- Multi-model fallback chain (`POEM_PRIMARY_MODEL`, `POEM_FALLBACK_MODELS`).
-- Structured flow state surfaced via API (`model`, `attempts`, `success`, `error`).
-- Strict failure mode (`POEM_STRICT=1`) to raise instead of returning placeholder text.
-- Optional fake output & forced error for deterministic testing (`POEM_FAKE_OUTPUT`, `POEM_FORCE_ERROR`).
-- Optional saving of poems to disk (`POEM_SAVE=1`, `POEM_OUTPUT_DIR`, timestamp toggle).
+This project uses [uv](https://docs.astral.sh/uv/) with `pyproject.toml` for dependency management instead of traditional requirements.txt files. This provides faster, more reliable package installation and dependency resolution.
 
-Future ideas:
-- Structured JSON logging integration (basic formatter exists in `logging.py`).
-- Metrics / tracing (OpenTelemetry) export.
-- CI workflow (pytest + lint + type) via GitHub Actions.
-- Rate limiting / caching layer (Redis) for popular topics.
+### Verifying Your Setup
 
-## 11. Quick Start (Copy/Paste)
+You can run the included `verify_setup.py` script to check your environment:
 
 ```bash
-git clone https://github.com/Nameissammy/Project-Hermes.git
-cd Project-Hermes/backend
-cp .env.example .env   # then edit key
-uv sync
+cd backend
+./verify_setup.py
+```
+
+The script will:
+
+1. Show your Python version
+2. List your Python path
+3. Check for required dependencies
+4. Provide instructions for setting up your environment with uv
+
+### Installing Dependencies
+
+```bash
+# Install uv if not already installed
+pip install uv
+
+# Create and activate virtual environment
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies from pyproject.toml
 uv pip install -e .
-uv run uvicorn project_hermes.api:app --reload --port 8001
-curl http://127.0.0.1:8001/poem/ai
 ```
 
-## 12. Example Response
+## 13. Support
 
-```json
-{
-	"poem": "The AI ... (lines)",
-	"topic": "ai",
-	"model": "gemini/gemini-2.0-flash",
-	"attempts": 1,
-	"success": true,
-	"error": null
-}
-```
-
----
-
-Everything above ensures others can reproduce the API server behavior without manual path tweaking.
-
-### Customizing
-
-### Key Environment Variables (Quick Reference)
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| GEMINI_API_KEY / GOOGLE_API_KEY | Auth for Gemini | (required) |
-| POEM_SENTENCE_COUNT | Deterministic sentence count | random 1-5 |
-| POEM_FAKE_OUTPUT | Bypass LLM for tests | (off) |
-| POEM_FORCE_ERROR | Simulate failure path | (off) |
-| POEM_PRIMARY_MODEL | First model to try | (YAML) |
-| POEM_FALLBACK_MODELS | Comma list of backups | (none) |
-| POEM_RETRY_ATTEMPTS | Attempts per model | 3 |
-| POEM_RETRY_BASE_DELAY | Initial backoff seconds | 0.6 |
-| POEM_STRICT | Raise on failure if 1 | 0 |
-| POEM_SAVE | Persist poems to files | 0 |
-| POEM_OUTPUT_DIR | Directory for saves | poems |
-| POEM_SAVE_TIMESTAMPED | Append timestamp if 1 | 1 |
-
-YAML model still acts as default if no runtime override is provided.
-
-## Support
-
-- crewAI docs: https://docs.crewai.com
+- CrewAI docs: https://docs.crewai.com
 - FastAPI docs: https://fastapi.tiangolo.com
 - uv docs: https://docs.astral.sh/uv/

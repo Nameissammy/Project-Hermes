@@ -1,17 +1,33 @@
 import importlib.metadata
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-
-from project_hermes.main import run_flow
+from pydantic import BaseModel
+import importlib.metadata
 from project_hermes.settings import get_settings
+from project_hermes.logging import configure_logging
+
+configure_logging()
+
+
+class TravelRequest(BaseModel):
+    query: str
+    llm_provider: str | None = None  # Added provider selection
+
+
+class TravelResponse(BaseModel):
+    success: bool
+    query: str
+    travel_plan: dict | None = None
+    error: str | None = None
+    confidence_score: float | None = None
+    llm_provider: str | None = None  # Added to show which provider was used
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(title=settings.app_name)
 
-    # CORS
     origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
     application.add_middleware(
         CORSMiddleware,
@@ -29,6 +45,23 @@ def create_app() -> FastAPI:
             version = "0.0.0"
         return {"status": "ok", "version": version, "env": settings.environment}
 
+    @application.post("/travel/plan", response_model=TravelResponse)
+    async def plan_travel(request: TravelRequest) -> TravelResponse:
+        from project_hermes.crews.travel_crew.travel_crew import TravelCrew
+
+        travel_crew = TravelCrew(verbose=True, llm_provider=request.llm_provider)
+        result = travel_crew.plan_trip(request.query)
+
+        # Add the provider info to the response
+        if hasattr(travel_crew.llm, "__class__"):
+            llm_type = travel_crew.llm.__class__.__name__
+            result["llm_provider"] = llm_type
+
+        return TravelResponse(**result)
+
+    # Keep existing poem endpoint for backward compatibility
+    from project_hermes.main import run_flow
+
     @application.get("/poem/{prompt}")
     def generate_poem(prompt: str):
         state = run_flow(prompt)
@@ -44,5 +77,4 @@ def create_app() -> FastAPI:
     return application
 
 
-# Preserve existing import path used by uvicorn: "project_hermes.api:app"
 app = create_app()
