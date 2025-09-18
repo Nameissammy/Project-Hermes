@@ -41,3 +41,7 @@ build-backend = "hatchling.build"
 
 [tool.crewai]
 type = "flow"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

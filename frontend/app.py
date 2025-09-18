@@ -6,7 +6,6 @@ A simple web interface for the travel planning system.
 
 import streamlit as st
 import requests
-import json
 import os
 from dotenv import load_dotenv
 
@@ -24,50 +23,70 @@ st.set_page_config(
 
 # Header
 st.title("✈️ Project Hermes - AI Travel Planning")
-st.markdown("""
-This app uses a team of specialized AI agents to create comprehensive travel plans.
-Each agent contributes their expertise to different aspects of your trip.
-""")
+st.markdown(
+    "This app uses a team of specialized AI agents to create comprehensive travel plans."
+)
 
-# Example queries
-example_queries = [
-    "Plan a weekend trip to Paris for a couple with a budget of $2000",
-    "I want to go hiking in the Swiss Alps for a week in July",
-    "Suggest a 5-day family vacation in Tokyo with kids",
-    "Plan a backpacking trip through Southeast Asia for 2 weeks",
-]
+st.subheader("Your query")
+st.text_area(
+    "",
+    key="query_input",
+    height=120,
+    placeholder="Describe the trip you want planned (destination, duration, preferences, budget, constraints)",
+)
 
-# Query input
-with st.form("travel_form"):
-    # Query input
-    query_option = st.radio(
-        "Choose an option:", ["Use an example query", "Enter your own query"]
-    )
+# Sidebar: provider selection and settings
+st.sidebar.header("Settings")
+provider_label = "LLM Provider"
+provider_choice = st.sidebar.selectbox(
+    provider_label,
+    ["Auto-detect", "gemini", "claude", "openai"],
+    index=0,
+    help="Leave as Auto-detect to use the first available provider (Gemini → Claude → OpenAI)",
+)
 
-    if query_option == "Use an example query":
-        query = st.selectbox("Select an example query:", example_queries)
-    else:
-        query = st.text_area(
-            "Enter your travel query:",
-            height=100,
-            placeholder="e.g., Plan a weekend trip to Paris for a couple with a budget of $2000",
-        )
+# Custom CSS for a more compact, wide button
+st.markdown(
+    """
+    <style>
+    /* More specific selector targeting the exact button label */
+    div.stButton > button[purpose="secondary"] { }
+    .stButton button:contains('Generate Plan') { }
+    /* Fallback: target all buttons, then narrow using size adjustments */
+    .stButton button {
+        padding: 0.25rem 0.6rem !important;
+        font-size: 0.8rem !important;
+        line-height: 1.1 !important;
+        width: 100% !important;
+        min-height: 30px !important;
+        border-radius: 4px !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-    # Submit button
-    submit_button = st.form_submit_button("Generate Travel Plan")
+submit_button = st.button("Generate Plan", use_container_width=True)
 
 # Process the query when submitted
-if submit_button and query:
-    try:
-        # Show a spinner while processing
-        with st.spinner("Generating your travel plan... This may take a minute."):
-            # Call the API
-            response = requests.post(
-                TRAVEL_ENDPOINT,
-                json={"query": query},
-                headers={"Content-Type": "application/json"},
-                timeout=120,  # Longer timeout for complex queries
-            )
+query = st.session_state.get("query_input", "").strip()
+if submit_button:
+    if not query:
+        st.warning("Please enter a travel query.")
+    else:
+        try:
+            # Show a spinner while processing
+            with st.spinner("Generating your travel plan... This may take a minute."):
+                # Call the API
+                payload = {"query": query}
+                if provider_choice != "Auto-detect":
+                    payload["llm_provider"] = provider_choice
+                response = requests.post(
+                    TRAVEL_ENDPOINT,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=120,  # Longer timeout for complex queries
+                )
 
             # Check if the request was successful
             if response.status_code == 200:
@@ -78,10 +97,14 @@ if submit_button and query:
                     st.success("Travel plan generated successfully!")
 
                     # Show confidence score
-                    st.metric(
-                        "Confidence Score",
-                        f"{result.get('confidence_score', 0) * 100:.1f}%",
-                    )
+                    conf = result.get("confidence_score")
+                    if isinstance(conf, (int, float)):
+                        st.metric("Confidence Score", f"{conf * 100:.1f}%")
+
+                    # Show provider used
+                    provider_used = result.get("llm_provider")
+                    if provider_used:
+                        st.caption(f"Provider used: {provider_used}")
 
                     # Display travel plan
                     travel_plan = result.get("travel_plan", {})
@@ -178,7 +201,7 @@ if submit_button and query:
                     # Raw JSON tab
                     with tabs[4]:
                         st.markdown("## Raw JSON Response")
-                        st.json(travel_plan)
+                        st.json(result)
 
                 else:
                     st.error(f"Error: {result.get('error', 'Unknown error')}")
@@ -192,24 +215,9 @@ if submit_button and query:
             else:
                 st.error(f"Error: HTTP {response.status_code} - {response.text}")
 
-    except Exception as e:
-        st.error(f"Error calling the travel planning API: {str(e)}")
-        st.info("Make sure the API server is running at " + API_HOST)
+        except Exception as e:
+            st.error(f"Error calling the travel planning API: {str(e)}")
+            st.info("Make sure the API server is running at " + API_HOST)
 
-# Footer
+# Minimal footer divider (retain if you want a visual end-of-page cue)
 st.markdown("---")
-st.markdown("### About Project Hermes")
-st.markdown("""
-Project Hermes is a multi-agent AI system built with CrewAI. 
-Each agent specializes in different aspects of travel planning:
-- **Confidence Agent**: Evaluates if your query is travel-related
-- **Orchestrator Agent**: Coordinates the overall planning process
-- **Information Agent**: Provides detailed information about destinations
-- **Safety Agent**: Provides safety recommendations
-- **Experience Agent**: Suggests activities and experiences
-- **Logistic Agent**: Plans transportation and accommodation
-- **Finance Agent**: Creates budget breakdowns and offers cost-saving tips
-""")
-
-# GitHub link
-st.markdown("[View on GitHub](https://github.com/your-username/Project-Hermes)")

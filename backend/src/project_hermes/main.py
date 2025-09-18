@@ -11,19 +11,6 @@ from pydantic import BaseModel
 
 from crewai.flow import Flow, listen, start
 
-try:
-    from project_hermes.crews.poem_crew.poem_crew import PoemCrew
-except ModuleNotFoundError:  # give user a helpful message
-    if __name__ == "__main__":
-        print(
-            (
-                "Could not import 'project_hermes'. Install editable (cd backend && "
-                "uv pip install -e .) or run with: uv run -m project_hermes.main '<topic>'"
-            ),
-            file=sys.stderr,
-        )
-    raise
-
 logger = logging.getLogger("project_hermes.flow")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -109,14 +96,11 @@ class PoemFlow(Flow[PoemState]):
                     elif "POEM_MODEL_RUNTIME_OVERRIDE" in os.environ:
                         del os.environ["POEM_MODEL_RUNTIME_OVERRIDE"]
 
-                    crew_instance = PoemCrew().crew()
-                    result = crew_instance.kickoff(
-                        inputs={
-                            "sentence_count": self.state.sentence_count,
-                            "topic": self.state.topic,
-                        }
+                    # PoemCrew removed; provide a simple deterministic stub
+                    raw = (
+                        f"[stub] A poem about {self.state.topic} with "
+                        f"{self.state.sentence_count} lines"
                     )
-                    raw = getattr(result, "raw", str(result))
                     self.state.poem = raw
                     self.state.model_used = model_override or os.getenv(
                         "POEM_LAST_AGENT_MODEL", "unknown"

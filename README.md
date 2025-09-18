@@ -16,19 +16,13 @@ The system uses CrewAI to orchestrate a team of specialized agents:
 
 ## 🔌 Multi-Provider Support
 
-Project Hermes now supports multiple LLM providers:
+Project Hermes supports multiple LLM providers and auto-detects the first available key in this order:
 
-1. **Google Gemini**: Primary provider for highest quality results
-2. **Anthropic Claude**: Secondary provider with excellent capabilities
-3. **OpenAI (GPT-4)**: Tertiary provider as a fallback option
+1. Google Gemini (primary)
+2. Anthropic Claude (secondary)
+3. OpenAI (tertiary)
 
-The system will automatically use the first available API key in this order:
-
-1. Gemini
-2. Claude
-3. OpenAI
-
-You can also explicitly specify which provider to use when initializing the TravelCrew.
+You can also explicitly specify which provider to use when initializing the crew or via the API. For Gemini, the system uses the exact model `gemini/gemini-2.0-flash`.
 
 ## 🏗️ Project Structure
 
@@ -37,7 +31,7 @@ The project is organized into two main directories:
 - **[backend/](./backend/)**: Contains the FastAPI server, multi-agent system, and all core functionality
 - **frontend/**: Contains the Streamlit-based web interface (under development)
 
-For detailed backend documentation, including setup instructions, architecture overview, and API reference, please see the [Backend README](./backend/README.md).
+For detailed backend documentation, including setup instructions, architecture overview, and API reference, see the [Backend README](./backend/README.md).
 
 ## � Getting Started
 

@@ -552,7 +552,7 @@ dependencies = [
 requires-dist = [
     { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "requests", specifier = ">=2.31.0" },
-    { name = "streamlit", specifier = ">=1.24.0" },
+    { name = "streamlit", specifier = ">=1.37.1" },
 ]
 
 [[package]]

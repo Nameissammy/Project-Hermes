@@ -47,32 +47,17 @@ def create_app() -> FastAPI:
 
     @application.post("/travel/plan", response_model=TravelResponse)
     async def plan_travel(request: TravelRequest) -> TravelResponse:
-        from project_hermes.crews.travel_crew.travel_crew import TravelCrew
+        from project_hermes.crews.travel_crew_multi_provider import TravelCrew
 
         travel_crew = TravelCrew(verbose=True, llm_provider=request.llm_provider)
         result = travel_crew.plan_trip(request.query)
 
-        # Add the provider info to the response
-        if hasattr(travel_crew.llm, "__class__"):
-            llm_type = travel_crew.llm.__class__.__name__
-            result["llm_provider"] = llm_type
+        # Add the provider info to the response (human-friendly)
+        result["llm_provider"] = getattr(travel_crew, "llm_provider_name", None)
 
         return TravelResponse(**result)
 
-    # Keep existing poem endpoint for backward compatibility
-    from project_hermes.main import run_flow
-
-    @application.get("/poem/{prompt}")
-    def generate_poem(prompt: str):
-        state = run_flow(prompt)
-        return {
-            "poem": state.poem,
-            "topic": state.topic,
-            "model": state.model_used,
-            "attempts": state.attempts,
-            "success": state.success,
-            "error": state.error_message,
-        }
+    # Poem endpoint removed as poem crew was deprecated
 
     return application
 
